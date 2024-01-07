@@ -5,8 +5,10 @@ const puppeteer = require('puppeteer');
 const { marked } = require('marked');
 const sass = require('node-sass');
 const matter = require('gray-matter');
+const { Parser } = require('commonmark');
 
 const myArgs = process.argv.slice(2);
+var parser = new Parser();
 
 // Load configs
 var configName = myArgs[0]==undefined?'arcMain':myArgs[0];
@@ -34,8 +36,11 @@ async function convertMarkdownToPDF(markdownFilePath, renderers) {
         markdown = await convertImagesToBase64(markdown);
 
         // Add title
+
+        // Get TOC and Title
+        let tocText = buildTOC(markdown, frontMatter);
         let docTitle = path.parse(markdownFilePath).name;
-        markdown = `# ${docTitle} \n --- \n ${markdown}`;
+        markdown = `# ${docTitle} \n --- \n ${tocText.md} \n ${markdown}`;
 
         // Convert Markdown to HTML
         marked.use({ gfm: true, renderer: renderers });
@@ -86,7 +91,14 @@ async function convertMarkdownToPDF(markdownFilePath, renderers) {
 }
 
 // RENDERERS
-const renderers = {};
+const renderers = {
+    heading(text, level) {
+        return `
+                <h${level} id="${toAnchorId(text)}">
+                    ${text}
+                </h${level}>`;
+      }
+};
 
 // LOCAL IMAGE HANDLING
 async function convertImagesToBase64(markdown) {
@@ -179,3 +191,57 @@ async function findFileByName(directory, fileName) {
         console.error('Error during search:', err);
     }
 })();
+
+
+function buildTOC(content, config) {
+    try {
+        let maxTOCLevel = config.maxTOC || 9999;
+        // PARSE CONTENT AND PULL OUT TOC
+        var parsed = parser.parse(content);
+        var toc = [];
+        var tocIdx = 0;
+        var walker = parsed.walker();
+        var event, node;
+        while ((event = walker.next())) {
+        node = event.node;
+        if (event.entering && node.type === 'heading') {
+            var h = node.firstChild;
+            var hContent = h.literal;
+            while(h.next !== null) {
+                h = h.next;
+                hContent = hContent + h.literal;
+            }
+            toc.push({
+                idx: tocIdx,
+                level: node.level,
+                title: hContent
+            })
+            tocIdx++;
+        }
+        }
+        
+        // ADD TITLE TO MD
+        let md = '', sep = ' ';
+
+        // CONVERT TO MD (KEEP ONLY DESIRED LEVELS)
+        toc = toc.filter((d)=>{return d.level <= maxTOCLevel});
+        if (toc.length>0) {
+            var minLevel = toc.reduce(function(prev, curr) {
+                return prev.level < curr.level ? prev : curr;
+            }).level;
+            
+            toc.forEach(t=>{
+                md = `${md}${sep.repeat(((t.level-(minLevel-1))*2))}- [${t.title}](#${toAnchorId(t.title)}) \n`;
+            });
+        }
+        return {data: toc, md: md}
+    } catch(e) {
+        console.log(e);
+        return {data: null, md: ""}
+    }
+}
+
+function toAnchorId(text) {
+    // Replace invalid symbols and spaces with underscores and convert to lowercase
+    return text.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+}
