@@ -243,5 +243,6 @@ function buildTOC(content, config) {
 
 function toAnchorId(text) {
     // Replace invalid symbols and spaces with underscores and convert to lowercase
+    text = text.replace('&amp;', '&');
     return text.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
 }
