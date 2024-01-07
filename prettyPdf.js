@@ -126,9 +126,9 @@ async function compileSassToCSS(scssFilePath) {
 // Function to open the PDF
 function openPdf(filePath) {
     // Replace filePath with the path to your PDF file
-    const chromePath = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+    const pdfAppPath = config.pdfAppPath ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 
-    exec(`"${chromePath}" "${filePath}"`, (err) => {
+    exec(`"${pdfAppPath}" "${filePath}"`, (err) => {
         if (err) {
             console.error(`An error occurred: ${err}`);
             return;

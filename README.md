@@ -1,7 +1,68 @@
-# obsidian-s3-private-publish
-Method to publish select MD files to s3 repo with private GUID
+# Obsidian Utilities
+Collection of utilities to turn Obsidian into a lightweight publishing platform.
 
-## **How to use**
+## S3 Pretty Print
+Converty your Obisidian Markdown files to PDF with highly customizable templates, with support for local image embedding, custom styling using SASS, and automatic header and footer generation.
+
+### What It Does
+The script takes a Markdown file as input and converts it to a PDF document. Key features include:
+- **Local Image Embedding:** Converts local images referenced in the Markdown file to base64 and embeds them directly in the PDF.
+- **Custom Styling:** Uses SASS for custom CSS styling of the PDF document.
+- **Dynamic Header and Footer:** Generates headers and footers for each page, including dynamic content such as the current year.
+- **Configurable Paths:** Allows configuration of paths for images, styles, templates, and output through a JSON file.
+
+### How to Use
+#### Configuration
+1. **Install Dependencies:** Run `npm install` to install the required Node.js modules.
+2. **Configuration File:** Create a JSON configuration file in the `configs` directory. The configuration should specify paths for images, styles, templates, and output. The following configurations are required:
+    - **baseVaultPath**: The absolute path to your base Obsidian directory.
+    - **relativeImagePath**: The path *relative to the base vault directory* that images are stored in.
+    - **templatePath**: Path relative to the root directory of this repository that your template files are in. That directory must include four files: `body.html`, `footer.html`, `header.html` and `style.scss`.
+    - **outputPath**: The absolute path where the generated PDF file should be saved.
+    - **pdfAppPath**: The location of the application you want to open PDFs (e.g., Chrome or Adobe Acrobat Reader).
+
+For example:
+
+    ```json
+    {
+      "baseVaultPath": "path/to/markdown/files",
+      "relativeImagePath": "path/to/images",
+      "templatePath": "path/to/templates",
+      "outputPath": "path/to/output",
+      "pdfAppPath": "path/to/chrome.exe"
+    }
+    ```
+
+#### Running the Script
+Execute the script from the command line with:
+
+```bash
+node yourScriptName.js [configName] [fileName]
+```
+
+- **configName**: The name of your configuration file (minus the .json extension). Defaults to arcMain if not provided.
+- **fileName**: The name of the Markdown file to convert.
+
+#### Configuring in Obsidian
+Using the [Shell Commands](https://github.com/Taitava/obsidian-shellcommands) plugin, register a new command that calls this script, passing in your template configuration (e.g., `arcMain`) and the name of the file ({{file_name}}):
+```bash
+node prettyPdf.js arcMain "{{file_name}}"
+```
+
+In the "Environments" config for Shell Commands, ensure the working directory is set to this Obsidian Utilities repository. 
+
+Register a hotkey (e.g., `ctrl+P`), and invoke it from any active page. The resulting PDF will then open in Chrome.
+
+### How It Works Technically
+- **Markdown Parsing**: Uses gray-matter to parse front matter and marked for Markdown to HTML conversion.
+- **Local Image Handling**: Replaces Obsidian-style image links with base64 encoded images using regular expressions and fs-extra for file operations.
+- **SASS/CSS Rendering**: Compiles SASS to CSS using node-sass.
+- **HTML and PDF Generation**: Assembles HTML with custom styling and uses puppeteer for generating the PDF file.
+- **Dynamic Header/Footer**: Uses string replacement to insert dynamic content into headers and footers.
+
+
+## S3 Publish
+Method to publish select MD files to s3 repo with semi-private GUID.
 ### **Configure env variables.** 
 Set up your env file with pointers for AWS, your local obsidian vault and (if using) the git repo information that you want to sync some files to.
 - **AWS Pointers.** The primary purpose of the system is to sync files tagged in a local Obsidian vault to a specified S3 bucket with a new semi-private GUID.
