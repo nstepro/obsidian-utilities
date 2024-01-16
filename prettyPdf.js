@@ -40,7 +40,7 @@ async function convertMarkdownToPDF(markdownFilePath, renderers) {
         // Get TOC and Title
         let tocText = buildTOC(markdown, frontMatter);
         let docTitle = path.parse(markdownFilePath).name;
-        markdown = `# ${docTitle} \n --- \n ${tocText.md} \n ${markdown}`;
+        markdown = `# ${docTitle} \n --- \n${tocText.md} \n ${markdown}`;
 
         // Convert Markdown to HTML
         marked.use({ gfm: true, renderer: renderers });
