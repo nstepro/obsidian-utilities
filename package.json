@@ -8,6 +8,7 @@
     "moment": "^2.30.1",
     "node-sass": "^9.0.0",
     "puppeteer": "^21.7.0",
+    "sharp": "^0.33.2",
     "short-uuid": "^4.2.2"
   }
 }

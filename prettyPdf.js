@@ -1,5 +1,6 @@
 const { exec } = require('child_process');
 const fs = require('fs-extra');
+const sharp = require('sharp');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const { marked } = require('marked');
@@ -34,6 +35,7 @@ async function convertMarkdownToPDF(markdownFilePath, renderers) {
 
         // Process images
         markdown = await convertImagesToBase64(markdown);
+        fs.writeFileSync("./output.html", markdown);
 
         // Add title
 
@@ -106,20 +108,40 @@ async function convertImagesToBase64(markdown) {
     let match;
     let markdownProcessed = markdown;
 
-    while ((match = obsidianImageRegex.exec(markdown)) !== null) {
-        const imagePath = match[1];
-        const absoluteImagePath = path.join(imgDir, imagePath);
-        const imageBase64 = await imageToBase64(absoluteImagePath);
-        const imageDataUri = `![${imagePath}](data:image/png;base64,${imageBase64})`;
-        markdownProcessed = markdownProcessed.replace(match[0], imageDataUri);
+    while ((match = obsidianImageRegex.exec(markdown)) !== null) {        
+            const imagePath = match[1];
+            const absoluteImagePath = path.join(imgDir, imagePath); 
+            const imageBase64 = await imageToBase64(absoluteImagePath);
+            const imageDataUri = `![${imagePath}](data:image/png;base64,${imageBase64})`;
+            markdownProcessed = markdownProcessed.replace(match[0], imageDataUri);
+
     }
 
     return markdownProcessed;
 }
 
 async function imageToBase64(filePath) {
-    const imageBuffer = await fs.readFile(filePath);
-    return imageBuffer.toString('base64');
+    const maxWidth = 2000, imgQuality = 70;
+    // Resize the image if wider than 1200px using sharp
+    let buffer = await sharp(filePath)
+        .metadata()
+        .then(metadata => {
+            if (metadata.width > maxWidth) {
+                return sharp(filePath)
+                    .resize(maxWidth) // Resize to max width
+                    .png({ quality: imgQuality, force: false })
+                    .jpeg({ quality: imgQuality, force: false })
+                    .toBuffer();
+            } else {
+                return sharp(filePath)
+                    .resize(metadata.width) // Resize to max width
+                    .png({ quality: imgQuality, force: false })
+                    .jpeg({ quality: imgQuality, force: false })
+                    .toBuffer();
+            }
+        });
+
+    return buffer.toString('base64');
 }
 
 // SASS/CSS RENDERING
