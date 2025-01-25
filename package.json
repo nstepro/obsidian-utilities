@@ -4,11 +4,13 @@
     "commonmark": "^0.30.0",
     "dotenv": "^16.3.1",
     "gray-matter": "^4.0.3",
+    "html-docx-js": "^0.3.1",
+    "html-to-docx": "^1.8.0",
     "marked": "^11.1.1",
     "moment": "^2.30.1",
     "node-sass": "^9.0.0",
     "puppeteer": "^21.7.0",
-    "sharp": "^0.33.2",
+    "sharp": "^0.33.5",
     "short-uuid": "^4.2.2"
   }
 }
