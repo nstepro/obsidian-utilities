@@ -4,7 +4,7 @@ const path = require('path');
 const { marked } = require('marked');
 const matter = require('gray-matter');
 const { Parser } = require('commonmark');
-const sass = require('node-sass');
+const sass = require('sass');
 
 // Initialize commonmark parser
 const parser = new Parser();
@@ -97,15 +97,8 @@ async function imageToBase64(filePath) {
 }
 
 async function compileSassToCSS(scssFilePath) {
-    return new Promise((resolve, reject) => {
-        sass.render({ file: scssFilePath }, (err, result) => {
-            if (err) {
-                reject(err);
-            } else {
-                resolve(result.css.toString());
-            }
-        });
-    });
+    const result = await sass.compileAsync(scssFilePath);
+    return result.css;
 }
 
 function buildTOC(content, config) {
