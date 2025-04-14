@@ -53,7 +53,8 @@ async function convertMarkdownToHTML(markdownFilePath, config) {
         html: fullHtml,
         headerTemplate: headerContent,
         footerTemplate: footerContent,
-        title: docTitle
+        title: docTitle,
+        frontMatter: frontMatter
     };
 }
 
