@@ -11,7 +11,7 @@ var configName = myArgs[0]==undefined?'arcMain':myArgs[0];
 var fileName = myArgs[1];const configText = fs.readFileSync(`./configs/${configName}.json`, 'utf8');
 const config = JSON.parse(configText);
 
-const apiUrl = path.join(process.env.CONFLUENCE_HOST || '', '/rest/api');
+const apiUrl = `${process.env.CONFLUENCE_HOST || ''}/rest/api`;
 const username = process.env.CONFLUENCE_USERNAME;
 const apiToken = process.env.CONFLUENCE_API_TOKEN;
 let spaceKey = process.env.CONFLUENCE_DEFAULT_SPACE;
@@ -55,7 +55,7 @@ async function createConfluencePage(title, content) {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
     };
-    
+
     // Base data object without ancestors
     const data = {
         type: 'page',
@@ -64,9 +64,9 @@ async function createConfluencePage(title, content) {
             key: spaceKey
         },
         body: {
-            storage: {
+            editor: {
                 value: content,
-                representation: 'storage'
+                representation: 'editor' // Use 'editor' for the new Confluence editor
             }
         }
     };
@@ -79,6 +79,7 @@ async function createConfluencePage(title, content) {
     }
 
     try {
+        console.log(url);
         const response = await axios.post(url, data, { headers: headers });
         return response.data;
     } catch (error) {
