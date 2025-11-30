@@ -9,8 +9,15 @@ const myArgs = process.argv.slice(2);
 
 // Load configs
 dotenv.config();
-var configName = myArgs[0]==undefined?'arcMain':myArgs[0];
-var fileName = myArgs[1];
+
+// Check for --save-html or --html flag
+const saveHtml = myArgs.includes('--save-html') || myArgs.includes('--html');
+
+// Filter out flags to get actual arguments
+const actualArgs = myArgs.filter(arg => !arg.startsWith('--'));
+
+var configName = actualArgs[0]==undefined?'arcMain':actualArgs[0];
+var fileName = actualArgs[1];
 const configText = fs.readFileSync(`./configs/${configName}.json`, 'utf8');
 const config = JSON.parse(configText);
 
@@ -54,6 +61,13 @@ async function convertToPDF(markdownFilePath) {
             headerTemplate: headerTemplate,
             footerTemplate: footerTemplate
         });
+
+        // Save HTML if requested
+        if (saveHtml) {
+            const htmlOutFile = path.join(outputPath, `${title}.html`);
+            await fs.writeFile(htmlOutFile, html, 'utf8');
+            console.log(`HTML successfully saved at ${htmlOutFile}`);
+        }
 
         // Close the browser
         await browser.close();

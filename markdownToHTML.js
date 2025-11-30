@@ -5,6 +5,7 @@ const { marked } = require('marked');
 const matter = require('gray-matter');
 const { Parser } = require('commonmark');
 const sass = require('sass');
+const cssMappings = require('./cssMappings');
 
 // Initialize commonmark parser
 const parser = new Parser();
@@ -24,17 +25,36 @@ async function convertMarkdownToHTML(markdownFilePath, config) {
     // Process images
     markdown = await convertImagesToBase64(markdown, config.imgDir);
 
+    // Process page break markers (---page--- or <!-- page -->)
+    markdown = processPageBreaks(markdown);
+
     // Get TOC and Title
     let tocText = buildTOC(markdown, frontMatter);
     let docTitle = path.parse(markdownFilePath).name;
-    markdown = `# ${docTitle} \n --- \n${tocText.md} \n ${markdown}`;
+    
+    // Add page break after TOC if specified in frontmatter
+    let tocWithPageBreak = tocText.md;
+    if (frontMatter.pageBreakAfterTOC === true || frontMatter.pageBreakAfterTOC === 'true') {
+        tocWithPageBreak = tocText.md ? `${tocText.md}\n<div class="page-break"></div>\n` : '';
+    }
+    
+    markdown = `# ${docTitle} \n --- \n${tocWithPageBreak}${markdown}`;
 
     // Convert Markdown to HTML
     marked.use({ gfm: true, renderer: renderers });
-    const html = marked(markdown);
+    let html = marked(markdown);
+
+    // Wrap hashtags in spans
+    html = wrapHashtags(html);
 
     // Read and compile the stylesheet
-    const css = await compileSassToCSS(config.cssPath);
+    let css = await compileSassToCSS(config.cssPath);
+
+    // Generate custom CSS from frontmatter and append to compiled CSS
+    const customCSS = generateCustomCSS(frontMatter);
+    if (customCSS) {
+        css += '\n/* Custom CSS from frontmatter */\n' + customCSS;
+    }
 
     // Combine HTML with the stylesheet and templates
     let fullHtml = await fs.readFile(config.bodyPath, 'utf8');
@@ -113,6 +133,44 @@ async function compileSassToCSS(scssFilePath) {
     return result.css;
 }
 
+function generateCustomCSS(frontMatter) {
+    if (!frontMatter) {
+        return '';
+    }
+
+    let customCSS = '';
+    let cssData = {};
+
+    // Check if there's a nested 'css' object
+    if (frontMatter.css && typeof frontMatter.css === 'object') {
+        cssData = frontMatter.css;
+    } else {
+        // Extract flat keys that start with 'css' prefix
+        Object.keys(frontMatter).forEach(key => {
+            if (key.startsWith('css') && key.length > 3) {
+                // Remove 'css' prefix and convert to camelCase
+                const cssKey = key.substring(3);
+                // Convert first letter to lowercase if needed
+                const normalizedKey = cssKey.charAt(0).toLowerCase() + cssKey.slice(1);
+                cssData[normalizedKey] = frontMatter[key];
+            }
+        });
+    }
+
+    // Generate CSS rules from the collected data
+    Object.keys(cssData).forEach(key => {
+        const value = cssData[key];
+        if (value !== null && value !== undefined && value !== '') {
+            const mapping = cssMappings[key];
+            if (mapping && typeof mapping === 'function') {
+                customCSS += mapping(value) + '\n';
+            }
+        }
+    });
+
+    return customCSS;
+}
+
 function buildTOC(content, config) {
     try {
         let maxTOCLevel = config.maxTOC || 9999;
@@ -162,6 +220,64 @@ function buildTOC(content, config) {
 function toAnchorId(text) {
     text = text.replace('&amp;', '&');
     return text.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+}
+
+function processPageBreaks(markdown) {
+    // Replace page break markers with HTML divs that will be preserved through markdown conversion
+    // Supports both ---page--- and <!-- page --> syntax
+    markdown = markdown.replace(/^---page---$/gm, '<div class="page-break"></div>');
+    markdown = markdown.replace(/<!--\s*page\s*-->/gi, '<div class="page-break"></div>');
+    return markdown;
+}
+
+function wrapHashtags(html) {
+    // Pattern to match hashtags: # followed by word characters (alphanumeric, underscore, hyphen)
+    // This will match #word, #hashtag, #tag-name, etc.
+    // Headers are already converted to <h1>, <h2>, etc. by markdown, so we don't need to worry about those
+    
+    // First, protect already-wrapped hashtags and HTML tags from being processed
+    const placeholders = [];
+    let placeholderIndex = 0;
+    
+    // Protect existing hashtag spans (handle Unicode characters)
+    html = html.replace(/<span class="hashtag">[^<]*<\/span>/gu, (match) => {
+        const placeholder = `__HASHTAG_PLACEHOLDER_${placeholderIndex}__`;
+        placeholders.push({ placeholder, original: match });
+        placeholderIndex++;
+        return placeholder;
+    });
+    
+    // Protect HTML tags (content inside <...>)
+    html = html.replace(/<[^>]+>/g, (match) => {
+        const placeholder = `__TAG_PLACEHOLDER_${placeholderIndex}__`;
+        placeholders.push({ placeholder, original: match });
+        placeholderIndex++;
+        return placeholder;
+    });
+    
+    // Protect HTML entities (like &#123; or &amp;)
+    html = html.replace(/&[#\w]+;/g, (match) => {
+        const placeholder = `__ENTITY_PLACEHOLDER_${placeholderIndex}__`;
+        placeholders.push({ placeholder, original: match });
+        placeholderIndex++;
+        return placeholder;
+    });
+    
+    // Now match hashtags in the remaining text
+    // Match #word where word consists of Unicode letters, numbers, underscores, or hyphens
+    // Using \p{L} for Unicode letters and \p{N} for Unicode numbers (requires 'u' flag)
+    html = html.replace(/#([\p{L}\p{N}_-]+)/gu, (match, tagName) => {
+        return `<span class="hashtag">#${tagName}</span>`;
+    });
+    
+    // Restore all placeholders in reverse order (to avoid conflicts)
+    // Sort by placeholder length (longer first) to avoid partial matches
+    placeholders.sort((a, b) => b.placeholder.length - a.placeholder.length);
+    placeholders.forEach(({ placeholder, original }) => {
+        html = html.replace(placeholder, original);
+    });
+    
+    return html;
 }
 
 module.exports = {

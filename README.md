@@ -53,6 +53,68 @@ In the "Environments" config for Shell Commands, ensure the working directory is
 
 Register a hotkey (e.g., `ctrl+P`), and invoke it from any active page. The resulting PDF will then open in Chrome.
 
+#### Custom CSS Styling via Frontmatter
+You can customize CSS styles directly in your Markdown file's frontmatter using key-value pairs. This allows you to override default styles for images, headers, and body text without modifying the template files.
+
+**Supported CSS Properties:**
+
+- **Image Styles:**
+  - `cssImageMaxWidth` - Set maximum width for images (e.g., `"500px"`)
+  - `cssImageMaxHeight` - Set maximum height for images (e.g., `"300px"`)
+  - `cssImageRotate` - Rotate images by degrees (e.g., `"45deg"` or `"-90deg"`)
+  - `cssImageDropShadow` - Add drop shadow filter (e.g., `"0 4px 6px rgba(0,0,0,0.1)"`)
+  - `cssImageBoxShadow` - Add box shadow (e.g., `"0 2px 4px rgba(0,0,0,0.2)"`)
+  - `cssImageBorder` - Set image border (e.g., `"2px solid #ccc"`)
+  - `cssImageBorderRadius` - Round image corners (e.g., `"8px"`)
+  - `cssImageMargin` - Set image margins (e.g., `"10px 20px"`)
+  - `cssImageAlign` - Align images by setting text-align on the wrapper paragraph (e.g., `"left"`, `"right"`, `"center"`)
+
+- **Header Styles (applies to all h1-h6):**
+  - `cssHeaderFontFamily` - Set font family (e.g., `"Arial, sans-serif"`)
+  - `cssHeaderFontSize` - Set font size (e.g., `"1.5rem"`)
+  - `cssHeaderColor` - Set text color (e.g., `"#333"`)
+
+- **Specific Header Level Styles:**
+  - `cssH1FontFamily`, `cssH1FontSize`, `cssH1Color`, `cssH1Margin` - Style h1 elements
+  - `cssH2FontFamily`, `cssH2FontSize`, `cssH2Color`, `cssH2Margin` - Style h2 elements
+  - `cssH3FontFamily`, `cssH3FontSize`, `cssH3Color`, `cssH3Margin` - Style h3 elements
+  - `cssH4FontFamily`, `cssH4FontSize`, `cssH4Color`, `cssH4Margin` - Style h4 elements
+  - `cssH5FontFamily`, `cssH5FontSize`, `cssH5Color`, `cssH5Margin` - Style h5 elements
+  - `cssH6FontFamily`, `cssH6FontSize`, `cssH6Color`, `cssH6Margin` - Style h6 elements
+
+- **Body/Paragraph Styles:**
+  - `cssBodyFontFamily` - Set font family for paragraphs and lists
+  - `cssBodyFontSize` - Set font size for paragraphs, lists, tables, and table cells
+  - `cssBodyColor` - Set text color for paragraphs and lists
+  - `cssBaseFontSize` - Set font size for all base elements (p, li, ul, ol, table, th, td) - same as `cssBodyFontSize`
+
+**Usage Examples:**
+
+You can use either a flat format (with `css` prefix) or a nested format:
+
+**Flat Format:**
+```yaml
+---
+cssImageMaxWidth: "500px"
+cssImageDropShadow: "0 4px 6px rgba(0,0,0,0.1)"
+cssHeaderFontFamily: "Georgia, serif"
+cssH1Color: "#2c3e50"
+---
+```
+
+**Nested Format:**
+```yaml
+---
+css:
+  imageMaxWidth: "500px"
+  imageDropShadow: "0 4px 6px rgba(0,0,0,0.1)"
+  headerFontFamily: "Georgia, serif"
+  h1Color: "#2c3e50"
+---
+```
+
+Both formats produce the same result. The nested format is cleaner when you have many CSS customizations.
+
 ### How It Works Technically
 - **Markdown Parsing**: Uses gray-matter to parse front matter and marked for Markdown to HTML conversion.
 - **Local Image Handling**: Replaces Obsidian-style image links with base64 encoded images using regular expressions and fs-extra for file operations.
