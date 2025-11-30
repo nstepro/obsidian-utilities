@@ -8,6 +8,7 @@ $noteBoldFont: "Hellix SemiBold", "Nunito", sans-serif;
 $grey-bg: #f7f3ff;
 $accent-purple: #3722f6;
 $accent-purple-2: #e98df5;
+$accent-purple-light: #f0efff;
 
 .arc-img {
     max-width: 200px;
@@ -121,11 +122,11 @@ body, html {
         }
     }
     span.hashtag {
-        background: $accent-purple;
+        background: $accent-purple-light;
         border-radius: 1em;
         padding: 2px 12px;
         font-size: .8em;
-        color: #fff;
+        color: $accent-purple;  
     }
     & img {
         border: 1px solid lightgrey;
@@ -235,6 +236,9 @@ body, html {
     }
     pre, pre > code, blockquote, tr, th {
         page-break-inside: avoid;
+    }
+    .page-break {
+        page-break-before: always;
     }
     // @page {
     //     margin: 20mm 15mm 20mm 15mm;  
