@@ -1,7 +1,7 @@
 let extend = require('util')._extend;
 let fs = require('fs');
 let path = require('path');
-let glob = require("glob");
+const { glob } = require("glob");
 const dotenv = require('dotenv');
 let matter = require('gray-matter');
 let short = require('short-uuid');
@@ -43,7 +43,7 @@ listAllKeys({Bucket: s3Bucket})
 
 function mainFileLoop(objectMap) {
     // Loop through files
-    glob(baseDir + '/**/*.md', (err,files) => {
+    glob(baseDir + '/**/*.md').then((files) => {
         var fileList = [];
         files.forEach((file)=>{
             
@@ -127,6 +127,8 @@ function mainFileLoop(objectMap) {
             }
         });
 
+    }).catch((err) => {
+        console.log('Error reading files:', err);
     });
 }
 

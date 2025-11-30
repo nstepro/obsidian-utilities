@@ -3,10 +3,12 @@ const fs = require('fs-extra');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const { convertMarkdownToHTML } = require('./markdownToHTML');
+const dotenv = require('dotenv');
 
 const myArgs = process.argv.slice(2);
 
 // Load configs
+dotenv.config();
 var configName = myArgs[0]==undefined?'arcMain':myArgs[0];
 var fileName = myArgs[1];
 const configText = fs.readFileSync(`./configs/${configName}.json`, 'utf8');
@@ -19,7 +21,10 @@ const baseVaultPath = config.baseVaultPath
     , headerPath = path.join(config.templatePath, "header.html")
     , footerPath = path.join(config.templatePath, "footer.html")
     , bodyPath = path.join(config.templatePath, "body.html")
-    , outputPath = config.outputPath;
+    , outputPath = config.outputPath
+    , pdfAppPath = process.env.PDF_APP_PATH ?? config.pdfAppPath ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+
+console.log(pdfAppPath);
 
 async function convertToPDF(markdownFilePath) {
     try {
@@ -63,8 +68,6 @@ async function convertToPDF(markdownFilePath) {
 
 // Function to open the PDF
 function openPdf(filePath) {
-    const pdfAppPath = config.pdfAppPath ?? 'C:/Program Files/Google/Chrome/Application/chrome.exe';
-
     exec(`"${pdfAppPath}" "${filePath}"`, (err) => {
         if (err) {
             console.error(`An error occurred: ${err}`);

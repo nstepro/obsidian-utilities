@@ -1,5 +1,5 @@
 const fs = require('fs-extra');
-const sharp = require('sharp');
+const Jimp = require('jimp');
 const path = require('path');
 const { marked } = require('marked');
 const matter = require('gray-matter');
@@ -75,26 +75,37 @@ async function convertImagesToBase64(markdown, imgDir) {
 }
 
 async function imageToBase64(filePath) {
-    const maxWidth = 2000, imgQuality = 70;
-    let buffer = await sharp(filePath)
-        .metadata()
-        .then(metadata => {
-            if (metadata.width > maxWidth) {
-                return sharp(filePath)
-                    .resize(maxWidth)
-                    .png({ quality: imgQuality, force: false })
-                    .jpeg({ quality: imgQuality, force: false })
-                    .toBuffer();
-            } else {
-                return sharp(filePath)
-                    .resize(metadata.width)
-                    .png({ quality: imgQuality, force: false })
-                    .jpeg({ quality: imgQuality, force: false })
-                    .toBuffer();
-            }
-        });
-
-    return buffer.toString('base64');
+    const maxWidth = 2000;
+    const imgQuality = 70;
+    
+    try {
+        // Read the image
+        const image = await Jimp.read(filePath);
+        const originalWidth = image.getWidth();
+        
+        // Resize if needed
+        if (originalWidth > maxWidth) {
+            image.resize(maxWidth, Jimp.AUTO);
+        }
+        
+        // Determine output format based on file extension
+        const ext = path.extname(filePath).toLowerCase();
+        let mimeType = Jimp.MIME_PNG;
+        
+        // Convert to appropriate format and get buffer
+        if (ext === '.jpg' || ext === '.jpeg') {
+            mimeType = Jimp.MIME_JPEG;
+            const buffer = await image.quality(imgQuality).getBufferAsync(mimeType);
+            return buffer.toString('base64');
+        } else {
+            // For PNG and other formats, use PNG
+            const buffer = await image.getBufferAsync(mimeType);
+            return buffer.toString('base64');
+        }
+    } catch (error) {
+        console.error(`Error processing image ${filePath}:`, error);
+        throw error;
+    }
 }
 
 async function compileSassToCSS(scssFilePath) {
