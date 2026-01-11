@@ -70,7 +70,7 @@ body, html {
         font-family: $noteHeaderFont;
         font-weight: 800;
     }
-    & li > code, p > code, strong > code, b > code, h1 > code, h2 > code, h3 > code, h4 > code, h5 > code, h6 > code {
+    & li > code, p > code, strong > code, b > code, h1 > code, h2 > code, h3 > code, h4 > code, h5 > code, h6 > code, td > code {
         background: $grey-bg;
         padding: 0 8px;
         border-radius: 4px;
