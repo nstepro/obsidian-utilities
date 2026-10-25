@@ -123,14 +123,12 @@ Both formats produce the same result. The nested format is cleaner when you have
 - **Dynamic Header/Footer**: Uses string replacement to insert dynamic content into headers and footers.
 
 
-## S3 Publish
-Method to publish select MD files to s3 repo with semi-private GUID.
-### **Configure env variables.** 
-Set up your env file with pointers for AWS, your local obsidian vault and (if using) the git repo information that you want to sync some files to.
-- **AWS Pointers.** The primary purpose of the system is to sync files tagged in a local Obsidian vault to a specified S3 bucket with a new semi-private GUID.
-  - **`AWS_ACCESS_KEY_ID`**. The access key for the AWS account that has write access to the target S3 bucket (e.g., `AKIAIOSFODNN7EXAMPLE`)
-  - **`AWS_SECRET_ACCESS_KEY`**. The secret key for the AWS account that has write access to the target S3 bucket (e.g., `wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY`)
-  - **`AWS_BUCKET_NAME`**. The bucket name that the data will be written to (all files will be written to the base path of the bucket) (e.g., `obsidian-notes`)
+## GCS Publish
+Method to publish select MD files to a Google Cloud Storage bucket with semi-private GUID. Notes are published to `grimace/note/{guid}.md`, embedded images to `grimace/images/{name}`, and the projects grid (`guid: grimace-project-list`) to `grimace/grimace-project-list.md` in the `GCS_BUCKET` bucket.
+### **Configure auth and env variables.**
+- **GCP Auth.** The publisher uses [Application Default Credentials](https://cloud.google.com/docs/authentication/application-default-credentials) — run `gcloud auth application-default login` once on your machine; no key material is needed. To use a service-account key file instead, set `GOOGLE_APPLICATION_CREDENTIALS` to its path.
+- **Env variables.** Set up your env file (see `.env.example`) with pointers for GCS, your local obsidian vault and (if using) the git repo information that you want to sync some files to.
+  - **`GCS_BUCKET`**. The bucket name that the data will be written to (e.g., `nstepro-sites`). Defaults to `nstepro-sites` if omitted.
 - **Obsidian Vault Pointers.** Configure which local directory to scan for files to publish.
   - **`BASE_MD_DIR`**. The absolute local file path of your obsidian vault. Technically, this can be any local path with markdown files in it. The service will crawl through ALL subdirectories to find markdown files that are tagged with a `publish` attribute in the front matter.
 - **Git Pointers.** If desired, the system can also sync a further subset of files to a target git repository. This can be useful if a subdirectory in your Vault contains document data that you want to push to a gitdocs workflow.
@@ -140,9 +138,9 @@ Set up your env file with pointers for AWS, your local obsidian vault and (if us
 
 ### **Tag your markdown files.**
 Only markdowns tagged appropriately will be updated and synced.
-- **Tagging for AWS Sync.** Add a `publish:true` attribute to the frontmatter. Once the data is synced, a new `guid` attribute will appear that contains the file's unique ID (this is the name of the file in the S3 path). 
-  - Note, if you do not want a GUID, and instead want a readable name, simply change the `guid` attribute to the desired name (but it MUST be unique for the bucket, as all files are placed in the base path) (e.g., `guid:vacation-notes`).
+- **Tagging for GCS Sync.** Add a `publish:true` attribute to the frontmatter. Once the data is synced, a new `guid` attribute will appear that contains the file's unique ID (notes are stored as `grimace/note/{guid}.md`).
+  - Note, if you do not want a GUID, and instead want a readable name, simply change the `guid` attribute to the desired name (but it MUST be unique among published notes) (e.g., `guid:vacation-notes`).
 - **Tagging for Git Sync.** Add an empty `gitUrl` attribute to the frontmatter. Once the data is synced, this will be populated with the full git URL.
 
 ### **Executing the sync.**
-The user must invoke the node app from the CLI (e.g., `node publish.js`). This can be put on a scheduler, or called with a shortcut from Obsidian using the [Shell Commands community plugin](https://publish.obsidian.md/shellcommands).
+The user must invoke the node app from the CLI (e.g., `node publishToGCS.js`). Add `--dry-run` to print the planned uploads (key, size, content-type) without writing anything. Only files modified since their last publish are uploaded; a summary of uploaded/skipped/failed counts prints at the end and the process exits non-zero if any upload failed. This can be put on a scheduler, or called with a shortcut from Obsidian using the [Shell Commands community plugin](https://publish.obsidian.md/shellcommands).
