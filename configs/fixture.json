@@ -1,0 +1,8 @@
+{
+    "relativeImagePath": "99 - Images & Assets",
+    "templatePath": "./smoke/fixture/template",
+    "outputPath": "./smoke/out",
+    "baseVaultPath": "./smoke/fixture/vault",
+    "pdfAppPath": "",
+    "wordAppPath": ""
+}

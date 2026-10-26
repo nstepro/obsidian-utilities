@@ -106,3 +106,8 @@ dist
 
 # Test output html
 output.html
+# Smoke harness scratch output (golden IS committed)
+smoke/out/
+
+# GCS dry-run state lands in the fixture vault; disposable
+smoke/fixture/vault/.publish-state.json

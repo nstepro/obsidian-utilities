@@ -1,0 +1,8 @@
+Processing modified file: Base Note
+[dry-run] upload gs://test-bucket/grimace/images/fixture-image.png (24327 bytes, image/png)
+[dry-run] upload gs://test-bucket/grimace/images/fixture-wide.jpg (300776 bytes, image/jpeg)
+[dry-run] upload gs://test-bucket/grimace/note/fixedgui.md (505 bytes, text/markdown; charset=utf-8)
+Processing modified file: Nested Note
+[dry-run] upload gs://test-bucket/grimace/note/nestedgui.md (258 bytes, text/markdown; charset=utf-8)
+
+Publish summary: 2 uploaded, 0 skipped, 0 skipped for bad frontmatter, 0 failed (dry-run, nothing written)

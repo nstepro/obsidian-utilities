@@ -1,11 +1,12 @@
-let extend = require('util')._extend;
-let fs = require('fs');
-let path = require('path');
-const { glob } = require("glob");
-const dotenv = require('dotenv');
-let matter = require('gray-matter');
-let short = require('short-uuid');
-const moment = require('moment');
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { glob } from "glob";
+import dotenv from 'dotenv';
+import matter from 'gray-matter';
+import { Storage } from '@google-cloud/storage';
+import { walkVault } from './lib/vault.js';
+import { stringifyNote, hasPublishKey } from './lib/frontmatter.js';
 
 // Get env variables
 dotenv.config();
@@ -20,7 +21,6 @@ const gitURL = process.env.GIT_REPO_URL;
 let bucket_;
 function getBucket() {
     if (!bucket_) {
-        const { Storage } = require('@google-cloud/storage');
         bucket_ = new Storage().bucket(gcsBucketName);
     }
     return bucket_;
@@ -71,18 +71,6 @@ function loadPublishState() {
 
 function savePublishState() {
     fs.writeFileSync(statePath(), JSON.stringify(publishState, null, 2));
-}
-
-// Recursively list .md files without reading them; skips vault-internal dirs
-function walkVault(dir) {
-    const out = [];
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
-        const p = path.join(dir, e.name);
-        if (e.isDirectory()) out.push(...walkVault(p));
-        else if (e.isFile() && e.name.endsWith('.md')) out.push(p);
-    }
-    return out;
 }
 
 async function listExistingObjects() {
@@ -158,18 +146,6 @@ async function main() {
 
 let uploadFailures = [];
 
-// matter.stringify(string, ...) re-parses the string, so a body that itself starts with
-// a bad '---' block throws. Pass an object to skip the parse.
-function stringifyNote(content, data) {
-    return matter.stringify({ content }, data);
-}
-
-// True if the leading '---' front matter block contains a top-level publish: key
-function hasPublishKey(text) {
-    const block = text.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---/);
-    return block !== null && /^publish:/m.test(block[1]);
-}
-
 async function mainFileLoop(objectMap, candidates, cached) {
     const results = { uploaded: 0, skipped: 0, failed: 0, invalid: 0 };
     const failures = [];
@@ -207,7 +183,10 @@ async function mainFileLoop(objectMap, candidates, cached) {
         if (m.matter.data.publish) {
 
             // Get create/modify dates (published notes only)
-            const createdDate = moment(fs.statSync(file).birthtime).format('MMM D, YYYY h:mm A');
+            const createdDate = fs.statSync(file).birthtime.toLocaleString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            }).replace(/(\d{4}),/, '$1');
             if (m.matter.data.created === undefined || m.matter.data.created === null) {
                 m.matter.data.created = createdDate;
                 fs.writeFileSync(file, stringifyNote(m.matter.content, m.matter.data));
@@ -215,8 +194,8 @@ async function mainFileLoop(objectMap, candidates, cached) {
 
             // If GUID doesn't already exist
             if (m.matter.data.guid === undefined) {
-                // Add new GUID tag
-                m.matter.data = extend(m.matter.data, { guid: short().new().substring(0, 8) });
+                // Add new GUID tag (8 chars, same shape short-uuid produced)
+                m.matter.data = { ...m.matter.data, guid: crypto.randomUUID().replaceAll('-', '').substring(0, 8) };
                 gitSettings.updateFile = true;
             }
 
@@ -227,7 +206,7 @@ async function mainFileLoop(objectMap, candidates, cached) {
 
                 // If GitURL doesn't exist (or is misaligned) - add it
                 if (gitSettings.gitPublish && gitSettings.gitFileURL !== m.matter.data.gitURL) {
-                    m.matter.data = extend(m.matter.data, { gitURL: gitSettings.gitFileURL });
+                    m.matter.data = { ...m.matter.data, gitURL: gitSettings.gitFileURL };
                     gitSettings.updateFile = true;
                 }
 
