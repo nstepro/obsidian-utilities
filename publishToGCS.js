@@ -5,7 +5,6 @@ const { glob } = require("glob");
 const dotenv = require('dotenv');
 let matter = require('gray-matter');
 let short = require('short-uuid');
-const { Storage } = require('@google-cloud/storage');
 const moment = require('moment');
 
 // Get env variables
@@ -17,11 +16,24 @@ const gitPath = process.env.GIT_REPO_ABSDIR;
 const gitURL = process.env.GIT_REPO_URL;
 // Auth: Application Default Credentials (ADC) by default; a service-account key
 // file is picked up automatically via GOOGLE_APPLICATION_CREDENTIALS if set.
-const storage = new Storage();
-const bucket = storage.bucket(gcsBucketName);
+// Lazy: runs with nothing to upload never load the SDK or touch the network.
+let bucket_;
+function getBucket() {
+    if (!bucket_) {
+        const { Storage } = require('@google-cloud/storage');
+        bucket_ = new Storage().bucket(gcsBucketName);
+    }
+    return bucket_;
+}
 
 // Optional dry-run flag: print planned uploads without writing anything
 const dryRun = process.argv.includes('--dry-run');
+// --refresh: ignore/rebuild the local cache by re-listing GCS once
+const refresh = process.argv.includes('--refresh');
+
+const STATE_FILE = '.publish-state.json';
+// Map abs file path -> { mtimeMs, guid }; written after every successful upload
+let publishState = {};
 
 const CONTENT_TYPES = {
     '.md': 'text/markdown; charset=utf-8',
@@ -43,8 +55,38 @@ function gcsKeyForNote(guid) {
     return guid === 'grimace-project-list' ? 'grimace-project-list.md' : `note/${guid}.md`;
 }
 
+function statePath() {
+    return path.join(baseDir, STATE_FILE);
+}
+
+function loadPublishState() {
+    if (refresh) return {};
+    try {
+        publishState = JSON.parse(fs.readFileSync(statePath(), 'utf8'));
+    } catch {
+        publishState = {}; // first run or unreadable cache
+    }
+    return publishState;
+}
+
+function savePublishState() {
+    fs.writeFileSync(statePath(), JSON.stringify(publishState, null, 2));
+}
+
+// Recursively list .md files without reading them; skips vault-internal dirs
+function walkVault(dir) {
+    const out = [];
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
+        const p = path.join(dir, e.name);
+        if (e.isDirectory()) out.push(...walkVault(p));
+        else if (e.isFile() && e.name.endsWith('.md')) out.push(p);
+    }
+    return out;
+}
+
 async function listExistingObjects() {
-    const [files] = await bucket.getFiles({ prefix: 'grimace/' });
+    const [files] = await getBucket().getFiles({ prefix: 'grimace/' });
     const objectMap = {};
     files.forEach((f) => {
         if (/^grimace\/note\/.+\.md$/.test(f.name)) {
@@ -63,7 +105,7 @@ function uploadToGCS(key, fileContent) {
         console.log(`[dry-run] upload gs://${gcsBucketName}/grimace/${key} (${fileContent.length} bytes, ${contentType})`);
         return Promise.resolve({ ok: true });
     }
-    return bucket.file(`grimace/${key}`).save(fileContent, {
+    return getBucket().file(`grimace/${key}`).save(fileContent, {
         contentType,
         resumable: false,
         metadata: { cacheControl: path.extname(key) === '.md' ? undefined : 'public, max-age=3600' }
@@ -71,8 +113,47 @@ function uploadToGCS(key, fileContent) {
 }
 
 async function main() {
-    const objectMap = await listExistingObjects();
-    await mainFileLoop(objectMap);
+    const cached = loadPublishState();
+    const files = walkVault(baseDir);
+
+    // Cheap prefilter: only read + parse notes missing from the cache or
+    // modified since their last publish. Unchanged notes are never opened.
+    const candidates = [];
+    for (const file of files) {
+        let mtimeMs;
+        try {
+            mtimeMs = fs.statSync(file).mtimeMs;
+        } catch {
+            continue; // deleted between walk and stat
+        }
+        const entry = cached[file];
+        if (!entry || entry.mtimeMs !== mtimeMs) candidates.push(file);
+    }
+
+    if (candidates.length === 0 && !refresh) {
+        console.log('No changes since last publish.');
+        return;
+    }
+
+    // Last-published mtimes: cache if complete, else reseed from GCS once
+    let objectMap = null;
+    if (refresh || candidates.some((f) => !cached[f])) {
+        objectMap = await listExistingObjects();
+        // Seed cache from GCS listing so unchanged published notes are never re-uploaded
+        for (const file of candidates) {
+            if (cached[file]) continue;
+            // Read just enough to learn the guid; only for files the cache lacks
+            const text = fs.readFileSync(file, 'utf8');
+            if (!hasPublishKey(text)) continue;
+            const guidMatch = text.match(/^guid:\s*(\S+)/m);
+            if (guidMatch && objectMap[guidMatch[1]] !== undefined) {
+                publishState[file] = { mtimeMs: fs.statSync(file).mtimeMs, guid: guidMatch[1] };
+            }
+        }
+        fs.writeFileSync(statePath(), JSON.stringify(publishState, null, 2));
+    }
+
+    await mainFileLoop(objectMap, candidates, cached);
 }
 
 let uploadFailures = [];
@@ -89,12 +170,11 @@ function hasPublishKey(text) {
     return block !== null && /^publish:/m.test(block[1]);
 }
 
-async function mainFileLoop(objectMap) {
+async function mainFileLoop(objectMap, candidates, cached) {
     const results = { uploaded: 0, skipped: 0, failed: 0, invalid: 0 };
     const failures = [];
     // Loop through files
-    const files = await glob(baseDir + '/**/*.md');
-    for (const file of files) {
+    for (const file of candidates) {
 
         // Read front matter
         let m = {};
@@ -140,8 +220,9 @@ async function mainFileLoop(objectMap) {
                 gitSettings.updateFile = true;
             }
 
-            // Only proceed if updated since last GCS file (or GCS file doesn't exist)
-            if (fs.statSync(file).mtime > objectMap[m.matter.data.guid] || objectMap[m.matter.data.guid] == undefined) {
+            // Only proceed if updated since last publish (cache first, GCS fallback)
+            const lastPublished = cached[file]?.mtimeMs ?? objectMap?.[m.matter.data.guid];
+            if (lastPublished === undefined || fs.statSync(file).mtimeMs > lastPublished) {
                 console.log(`Processing modified file: ${path.parse(file).name}`);
 
                 // If GitURL doesn't exist (or is misaligned) - add it
@@ -185,6 +266,9 @@ async function mainFileLoop(objectMap) {
                 const res = await uploadToGCS(gcsKeyForNote(m.matter.data.guid), stringifyNote(m.matter.content, m.matter.data));
                 if (res.ok) {
                     results.uploaded++;
+                    if (!dryRun) {
+                        publishState[file] = { mtimeMs: fs.statSync(file).mtimeMs, guid: m.matter.data.guid };
+                    }
                 } else {
                     results.failed++;
                     failures.push(res);
@@ -194,6 +278,13 @@ async function mainFileLoop(objectMap) {
             }
         }
     }
+
+    // Drop cache entries for files no longer in the vault
+    const livePaths = new Set(candidates);
+    for (const file of Object.keys(publishState)) {
+        if (!livePaths.has(file)) delete publishState[file];
+    }
+    fs.writeFileSync(statePath(), JSON.stringify(publishState, null, 2));
 
     const allFailures = failures.concat(uploadFailures);
     console.log(`\nPublish summary: ${results.uploaded} uploaded, ${results.skipped} skipped, ${results.invalid} skipped for bad frontmatter, ${allFailures.length} failed${dryRun ? ' (dry-run, nothing written)' : ''}`);
