@@ -75,6 +75,8 @@ async function main() {
     await mainFileLoop(objectMap);
 }
 
+let uploadFailures = [];
+
 async function mainFileLoop(objectMap) {
     const results = { uploaded: 0, skipped: 0, failed: 0 };
     const failures = [];
@@ -130,7 +132,7 @@ async function mainFileLoop(objectMap) {
 
                 // CONTENT MODIFICATIONS
                 // Handle embedded images and markdown
-                m.matter.content = processEmbeds(m.matter.content, m.matter.data);
+                m.matter.content = await processEmbeds(m.matter.content, m.matter.data);
 
                 // Handle remaining links
                 m.matter.content = processRelativePathLinks(m.matter.content, file);
@@ -168,15 +170,17 @@ async function mainFileLoop(objectMap) {
         }
     }
 
-    console.log(`\nPublish summary: ${results.uploaded} uploaded, ${results.skipped} skipped, ${results.failed} failed${dryRun ? ' (dry-run, nothing written)' : ''}`);
-    failures.forEach((f) => console.error(`FAILED: ${f.key}: ${f.err.message}`));
-    if (results.failed > 0) {
+    const allFailures = failures.concat(uploadFailures);
+    console.log(`\nPublish summary: ${results.uploaded} uploaded, ${results.skipped} skipped, ${allFailures.length} failed${dryRun ? ' (dry-run, nothing written)' : ''}`);
+    allFailures.forEach((f) => console.error(`FAILED: ${f.key}: ${f.err.message}`));
+    if (allFailures.length > 0) {
         process.exitCode = 1;
     }
 }
 
-function processEmbeds(content, data) {
+async function processEmbeds(content, data) {
     var images = [];
+    var uploadResults = [];
     content.split('![[').forEach((str, i) => {
         if (i > 0) {
             images.push(str.split(']]')[0]);
@@ -188,7 +192,7 @@ function processEmbeds(content, data) {
         });
     }
 
-    images.forEach((imgName) => {
+    for (const imgName of images) {
         // If not an image, treat as markdown embed and replace contents inline
         if (!imgName.match(/\.(jpe?g|png|gif|svg|webp)$/i)) {
             glob.sync(baseDir + `/**/${imgName}.md`).forEach(file => {
@@ -199,12 +203,19 @@ function processEmbeds(content, data) {
         }
         // Else upload the image
         else {
-            glob.sync(baseDir + `/**/${imgName}`).forEach(file => {
+            const imgFiles = glob.sync(baseDir + `/**/${imgName}`);
+            if (imgFiles.length === 0) {
+                console.warn(`WARNING: embed not found in vault: ${imgName}`);
+            }
+            for (const file of imgFiles) {
                 var imgData = fs.readFileSync(file);
-                uploadToGCS(`images/${imgName}`, imgData);
-            });
+                uploadResults.push(await uploadToGCS(`images/${imgName}`, imgData));
+            }
         }
-    })
+    }
+    if (uploadResults.some((r) => !r.ok)) {
+        uploadFailures.push(...uploadResults.filter((r) => !r.ok));
+    }
     return content;
 }
 
