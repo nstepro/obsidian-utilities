@@ -1,11 +1,11 @@
-const fs = require('fs');
-const Jimp = require('jimp');
-const path = require('path');
-const { marked } = require('marked');
-const matter = require('gray-matter');
-const { Parser } = require('commonmark');
-const sass = require('sass');
-const cssMappings = require('./cssMappings');
+import fs from 'node:fs';
+import Jimp from 'jimp';
+import path from 'node:path';
+import { marked } from 'marked';
+import matter from 'gray-matter';
+import { Parser } from 'commonmark';
+import sass from 'sass';
+import cssMappings from './cssMappings.js';
 
 // Initialize commonmark parser
 const parser = new Parser();
@@ -280,6 +280,6 @@ function wrapHashtags(html) {
     return html;
 }
 
-module.exports = {
+export {
     convertMarkdownToHTML
-}; 
+};

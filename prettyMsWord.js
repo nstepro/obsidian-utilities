@@ -1,9 +1,8 @@
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const HTMLtoDOCX = require('html-to-docx');
-const { convertMarkdownToHTML } = require('./markdownToHTML');
-const { spawn } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import HTMLtoDOCX from 'html-to-docx';
+import { convertMarkdownToHTML } from './markdownToHTML.js';
+import { spawn } from 'node:child_process';
 
 const myArgs = process.argv.slice(2);
 

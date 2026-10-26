@@ -51,5 +51,5 @@ const cssMappings = {
     baseFontSize: (value) => `.markdown-holder p, .markdown-holder li, .markdown-holder ul, .markdown-holder ol, .markdown-holder table, .markdown-holder th, .markdown-holder td { font-size: ${value}; }`,
 };
 
-module.exports = cssMappings;
+export default cssMappings;
 

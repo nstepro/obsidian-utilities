@@ -1,7 +1,8 @@
-const fs = require('fs');
-const dotenv = require('dotenv');
-const path = require('path');
-const { convertMarkdownToHTML } = require('./markdownToHTML');
+import fs from 'node:fs';
+import dotenv from 'dotenv';
+import path from 'node:path';
+import { convertMarkdownToHTML } from './markdownToHTML.js';
+
 dotenv.config();
 const myArgs = process.argv.slice(2);
 

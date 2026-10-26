@@ -1,9 +1,10 @@
-let fs = require('fs');
-let path = require('path');
-const crypto = require('node:crypto');
-const { glob } = require("glob");
-const dotenv = require('dotenv');
-let matter = require('gray-matter');
+import fs from 'node:fs';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { glob } from "glob";
+import dotenv from 'dotenv';
+import matter from 'gray-matter';
+import { Storage } from '@google-cloud/storage';
 
 // Get env variables
 dotenv.config();
@@ -18,7 +19,6 @@ const gitURL = process.env.GIT_REPO_URL;
 let bucket_;
 function getBucket() {
     if (!bucket_) {
-        const { Storage } = require('@google-cloud/storage');
         bucket_ = new Storage().bucket(gcsBucketName);
     }
     return bucket_;

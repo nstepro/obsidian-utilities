@@ -1,9 +1,9 @@
-const { exec } = require('child_process');
-const fs = require('fs');
-const path = require('path');
-const puppeteer = require('puppeteer');
-const { convertMarkdownToHTML } = require('./markdownToHTML');
-const dotenv = require('dotenv');
+import { exec } from 'node:child_process';
+import fs from 'node:fs';
+import path from 'node:path';
+import puppeteer from 'puppeteer';
+import { convertMarkdownToHTML } from './markdownToHTML.js';
+import dotenv from 'dotenv';
 
 const myArgs = process.argv.slice(2);
 
