@@ -45,7 +45,7 @@ async function convertToPDF(markdownFilePath) {
         });
 
         // Launch Puppeteer
-        const browser = await puppeteer.launch({headless: "new"});
+        const browser = await puppeteer.launch({headless: true});
         const page = await browser.newPage();
 
         // Set HTML content

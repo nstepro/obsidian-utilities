@@ -1,7 +1,7 @@
 import fs from 'node:fs';
-import Jimp from 'jimp';
+import { Jimp } from 'jimp';
 import path from 'node:path';
-import { marked } from 'marked';
+import { Marked } from 'marked';
 import matter from 'gray-matter';
 import { Parser } from 'commonmark';
 import sass from 'sass';
@@ -10,12 +10,26 @@ import cssMappings from './cssMappings.js';
 // Initialize commonmark parser
 const parser = new Parser();
 
-// Custom renderer for headings with anchor IDs
-const renderers = {
-    heading(text, level) {
-        return `<h${level} id="${toAnchorId(text)}">${text}</h${level}>`;
+// Marked instance with the custom heading renderer, registered ONCE at module
+// scope (marked.use on the shared `marked` export mutates global state and
+// compounded on every call).
+const md = new Marked();
+md.use({
+    gfm: true,
+    renderer: {
+        // v13+ token-object signature. `this.parser.parseInline(token.tokens)`
+        // yields the already-rendered inline HTML that v11 passed as `text`.
+        heading(token) {
+            const inner = this.parser.parseInline(token.tokens);
+            return `<h${token.depth} id="${toAnchorId(inner)}">${inner}</h${token.depth}>`;
+        },
+        // v11 kept a blank line after a raw HTML block (page-break divs);
+        // v18 swallows it. Re-add to preserve golden output parity.
+        html(token) {
+            return token.raw.endsWith('\n') ? token.raw : token.raw + '\n\n';
+        }
     }
-};
+});
 
 async function convertMarkdownToHTML(markdownFilePath, config) {
     // Read Markdown file
@@ -41,8 +55,7 @@ async function convertMarkdownToHTML(markdownFilePath, config) {
     markdown = `# ${docTitle} \n --- \n${tocWithPageBreak}${markdown}`;
 
     // Convert Markdown to HTML
-    marked.use({ gfm: true, renderer: renderers });
-    let html = marked(markdown);
+    let html = md.parse(markdown);
 
     // Wrap hashtags in spans
     html = wrapHashtags(html);
@@ -97,31 +110,24 @@ async function convertImagesToBase64(markdown, imgDir) {
 async function imageToBase64(filePath) {
     const maxWidth = 2000;
     const imgQuality = 70;
-    
+
     try {
         // Read the image
         const image = await Jimp.read(filePath);
-        const originalWidth = image.getWidth();
-        
-        // Resize if needed
-        if (originalWidth > maxWidth) {
-            image.resize(maxWidth, Jimp.AUTO);
+
+        // Resize if needed (height auto-scales; Jimp.AUTO is gone in v1)
+        if (image.width > maxWidth) {
+            image.resize({ w: maxWidth });
         }
-        
+
         // Determine output format based on file extension
         const ext = path.extname(filePath).toLowerCase();
-        let mimeType = Jimp.MIME_PNG;
-        
-        // Convert to appropriate format and get buffer
-        if (ext === '.jpg' || ext === '.jpeg') {
-            mimeType = Jimp.MIME_JPEG;
-            const buffer = await image.quality(imgQuality).getBufferAsync(mimeType);
-            return buffer.toString('base64');
-        } else {
-            // For PNG and other formats, use PNG
-            const buffer = await image.getBufferAsync(mimeType);
-            return buffer.toString('base64');
-        }
+        const mimeType = ['.jpg', '.jpeg'].includes(ext) ? 'image/jpeg' : 'image/png';
+
+        // v1: quality is a JPEG encode option passed to getBuffer (0-100)
+        const encodeOptions = mimeType === 'image/jpeg' ? { quality: imgQuality } : undefined;
+        const buffer = await image.getBuffer(mimeType, encodeOptions);
+        return buffer.toString('base64');
     } catch (error) {
         console.error(`Error processing image ${filePath}:`, error);
         throw error;

@@ -12,14 +12,22 @@
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",
-    "commonmark": "^0.30.0",
-    "dotenv": "^16.3.1",
-    "glob": "^11.0.3",
+    "commonmark": "^0.31.2",
+    "dotenv": "^18.0.9",
+    "glob": "^13.0.6",
     "gray-matter": "^4.0.3",
     "html-to-docx": "^1.8.0",
-    "jimp": "^0.22.10",
-    "marked": "^11.1.1",
+    "jimp": "^1.6.1",
+    "marked": "^18.1.1",
     "puppeteer": "^25.16.0",
-    "sass": "^1.86.0"
+    "sass": "^1.106.1"
+  },
+  "overrides": {
+    "html-to-docx": {
+      "image-size": "^2.0.4"
+    },
+    "jimp": {
+      "zod": "^4.6.7"
+    }
   }
 }
