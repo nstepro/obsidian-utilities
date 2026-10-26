@@ -77,8 +77,20 @@ async function main() {
 
 let uploadFailures = [];
 
+// matter.stringify(string, ...) re-parses the string, so a body that itself starts with
+// a bad '---' block throws. Pass an object to skip the parse.
+function stringifyNote(content, data) {
+    return matter.stringify({ content }, data);
+}
+
+// True if the leading '---' front matter block contains a top-level publish: key
+function hasPublishKey(text) {
+    const block = text.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---/);
+    return block !== null && /^publish:/m.test(block[1]);
+}
+
 async function mainFileLoop(objectMap) {
-    const results = { uploaded: 0, skipped: 0, failed: 0 };
+    const results = { uploaded: 0, skipped: 0, failed: 0, invalid: 0 };
     const failures = [];
     // Loop through files
     const files = await glob(baseDir + '/**/*.md');
@@ -87,13 +99,19 @@ async function mainFileLoop(objectMap) {
         // Read front matter
         let m = {};
         m.file = fs.readFileSync(file);
-        m.matter = matter(m.file);
 
-        // Get create/modify dates
-        const createdDate = moment(fs.statSync(file).birthtime).format('MMM D, YYYY h:mm A');
-        if (m.matter.data.created === undefined || m.matter.data.created === null) {
-            m.matter.data.created = createdDate;
-            fs.writeFileSync(file, matter.stringify(m.matter.content, m.matter.data));
+        // Cheap prefilter: skip notes with no publish key before any YAML parse
+        if (!hasPublishKey(m.file.toString('utf8'))) {
+            continue;
+        }
+
+        try {
+            m.matter = matter(m.file);
+        } catch (err) {
+            // Malformed front matter: warn and skip rather than fail the run
+            console.warn(`WARNING: skipping ${path.parse(file).name}, bad frontmatter: ${err.reason || err.message}`);
+            results.invalid++;
+            continue;
         }
 
         // Git settings
@@ -107,6 +125,13 @@ async function mainFileLoop(objectMap) {
 
         // If publish tag is added
         if (m.matter.data.publish) {
+
+            // Get create/modify dates (published notes only)
+            const createdDate = moment(fs.statSync(file).birthtime).format('MMM D, YYYY h:mm A');
+            if (m.matter.data.created === undefined || m.matter.data.created === null) {
+                m.matter.data.created = createdDate;
+                fs.writeFileSync(file, stringifyNote(m.matter.content, m.matter.data));
+            }
 
             // If GUID doesn't already exist
             if (m.matter.data.guid === undefined) {
@@ -127,7 +152,7 @@ async function mainFileLoop(objectMap) {
 
                 // Update file in-place
                 if (gitSettings.updateFile) {
-                    fs.writeFileSync(file, matter.stringify(m.matter.content, m.matter.data));
+                    fs.writeFileSync(file, stringifyNote(m.matter.content, m.matter.data));
                 }
 
                 // CONTENT MODIFICATIONS
@@ -149,7 +174,7 @@ async function mainFileLoop(objectMap) {
                     }
 
                     // Copy file
-                    fs.writeFileSync(gitSettings.gitAbsDir + '/' + path.parse(file).base, matter.stringify(gitContent, null));
+                    fs.writeFileSync(gitSettings.gitAbsDir + '/' + path.parse(file).base, stringifyNote(gitContent, {}));
                 }
 
                 // Log for reporting
@@ -157,7 +182,7 @@ async function mainFileLoop(objectMap) {
                 m.matter.content = `# ${path.parse(file).name} \n --- \n` + m.matter.content;
 
                 // Upload note to GCS (overwrite if exists)
-                const res = await uploadToGCS(gcsKeyForNote(m.matter.data.guid), matter.stringify(m.matter.content, m.matter.data));
+                const res = await uploadToGCS(gcsKeyForNote(m.matter.data.guid), stringifyNote(m.matter.content, m.matter.data));
                 if (res.ok) {
                     results.uploaded++;
                 } else {
@@ -171,7 +196,7 @@ async function mainFileLoop(objectMap) {
     }
 
     const allFailures = failures.concat(uploadFailures);
-    console.log(`\nPublish summary: ${results.uploaded} uploaded, ${results.skipped} skipped, ${allFailures.length} failed${dryRun ? ' (dry-run, nothing written)' : ''}`);
+    console.log(`\nPublish summary: ${results.uploaded} uploaded, ${results.skipped} skipped, ${results.invalid} skipped for bad frontmatter, ${allFailures.length} failed${dryRun ? ' (dry-run, nothing written)' : ''}`);
     allFailures.forEach((f) => console.error(`FAILED: ${f.key}: ${f.err.message}`));
     if (allFailures.length > 0) {
         process.exitCode = 1;
@@ -197,8 +222,15 @@ async function processEmbeds(content, data) {
         if (!imgName.match(/\.(jpe?g|png|gif|svg|webp)$/i)) {
             glob.sync(baseDir + `/**/${imgName}.md`).forEach(file => {
                 var docData = fs.readFileSync(file);
-                docContent = matter(docData);
-                content = content.replace(new RegExp(`!\\[\\[${imgName}]]`, 'g'), docContent.content);
+                var docContent;
+                try {
+                    docContent = matter(docData);
+                } catch (err) {
+                    // Leave the embed as-is rather than abort the note
+                    console.warn(`WARNING: embed ${imgName} has bad frontmatter, not inlined: ${err.reason || err.message}`);
+                    return;
+                }
+                content =content.replace(new RegExp(`!\\[\\[${imgName}]]`, 'g'), docContent.content);
             });
         }
         // Else upload the image
