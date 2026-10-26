@@ -1,30 +1,22 @@
-import fs from 'node:fs';
-import dotenv from 'dotenv';
 import path from 'node:path';
-import { convertMarkdownToHTML } from './markdownToHTML.js';
+import { convertMarkdownToHTML } from './lib/markdownToHTML.js';
+import { parseArgs, loadConfig } from './lib/config.js';
+import { findFileByName } from './lib/vault.js';
 
-dotenv.config();
 const myArgs = process.argv.slice(2);
+const { positional } = parseArgs(myArgs);
 
 // Configuration variables
-var configName = myArgs[0]==undefined?'arcMain':myArgs[0];
-var fileName = myArgs[1];const configText = fs.readFileSync(`./configs/${configName}.json`, 'utf8');
-const config = JSON.parse(configText);
+const configName = positional[0] === undefined ? 'arcMain' : positional[0];
+const fileName = positional[1];
+const { config, paths } = loadConfig(configName, fileName);
+const { baseVaultPath, imgDir, cssPath, headerPath, footerPath, bodyPath } = paths;
 
 const apiUrl = `${process.env.CONFLUENCE_HOST || ''}/rest/api`;
 const username = process.env.CONFLUENCE_USERNAME;
 const apiToken = process.env.CONFLUENCE_API_TOKEN;
 let spaceKey = process.env.CONFLUENCE_DEFAULT_SPACE;
 let parentId = process.env.CONFLUENCE_DEFAULT_PARENT;
-
-// Get paths
-const baseVaultPath = config.baseVaultPath
-    , imgDir = path.join(baseVaultPath, config.relativeImagePath)
-    , cssPath = path.join(config.templatePath, "style.scss")
-    , headerPath = path.join(config.templatePath, "header.html")
-    , footerPath = path.join(config.templatePath, "footer.html")
-    , bodyPath = path.join(config.templatePath, "body.html")
-    , outputPath = config.outputPath;
 
 // Encode credentials for basic auth
 const auth = Buffer.from(`${username}:${apiToken}`).toString('base64');
@@ -73,7 +65,7 @@ async function createConfluencePage(title, content) {
 
     // Only add ancestors if parentId is defined and not empty
     if (parentId && parentId.trim() !== '') {
-        data.ancestors = [{ 
+        data.ancestors = [{
             id: parentId.toString() // Ensure parentId is a string
         }];
     }
@@ -96,14 +88,14 @@ async function createConfluencePage(title, content) {
     }
 }
 
-// Add this new function to check if page exists
+// Check if page exists
 async function findConfluencePage(title) {
     const url = `${apiUrl}/content`;
     const headers = {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json'
     };
-    
+
     try {
         const params = new URLSearchParams({
             spaceKey,
@@ -124,7 +116,7 @@ async function findConfluencePage(title) {
     }
 }
 
-// Add this new function to update existing page
+// Update existing page
 async function updateConfluencePage(pageId, title, content, version) {
     const url = `${apiUrl}/content/${pageId}`;
     const headers = {
@@ -132,7 +124,7 @@ async function updateConfluencePage(pageId, title, content, version) {
         'Accept': 'application/json',
         'Content-Type': 'application/json'
     };
-    
+
     const data = {
         version: {
             number: version + 1
@@ -164,14 +156,14 @@ async function updateConfluencePage(pageId, title, content, version) {
     }
 }
 
-// Modify the uploadMarkdownToConfluence function
+// Upload markdown to Confluence
 async function uploadMarkdownToConfluence(filePath, title) {
     try {
         const markdownContent = await readMarkdown(filePath);
-        
+
         // Check if page already exists
         const existingPage = await findConfluencePage(title);
-        
+
         let result;
         if (existingPage) {
             console.log(`Updating existing page: ${title}`);
@@ -185,7 +177,7 @@ async function uploadMarkdownToConfluence(filePath, title) {
             console.log(`Creating new page: ${title}`);
             result = await createConfluencePage(title, markdownContent);
         }
-        
+
         console.log(result ? 'Success!' : 'Operation failed.');
         return result;
     } catch (error) {
@@ -194,44 +186,17 @@ async function uploadMarkdownToConfluence(filePath, title) {
     }
 }
 
-async function findFileByName(directory, fileName) {
-    let files;
-    try {
-        files = await fs.promises.readdir(directory, { withFileTypes: true });
-    } catch (err) {
-        throw err;
-    }
-
-    for (const file of files) {
-        const filePath = path.join(directory, file.name);
-
-        if (file.isDirectory()) {
-            try {
-                const foundPath = await findFileByName(filePath, fileName);
-                if (foundPath) return foundPath;
-            } catch (err) {
-                console.error(err);
-                continue;
-            }
-        } else if (file.name === fileName) {
-            return filePath;
-        }
-    }
-
-    return null;
-}
-
 // Main execution
 (async () => {
     try {
         const filePath = await findFileByName(baseVaultPath, fileName);
         if (filePath) {
             console.log('File found:', filePath);
-            uploadMarkdownToConfluence(filePath, path.parse(fileName).name);
+            await uploadMarkdownToConfluence(filePath, path.parse(fileName).name);
         } else {
             console.log('File not found');
         }
     } catch (err) {
         console.error('Error during search:', err);
     }
-})(); 
+})();

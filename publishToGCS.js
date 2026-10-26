@@ -5,6 +5,8 @@ import { glob } from "glob";
 import dotenv from 'dotenv';
 import matter from 'gray-matter';
 import { Storage } from '@google-cloud/storage';
+import { walkVault } from './lib/vault.js';
+import { stringifyNote, hasPublishKey } from './lib/frontmatter.js';
 
 // Get env variables
 dotenv.config();
@@ -69,18 +71,6 @@ function loadPublishState() {
 
 function savePublishState() {
     fs.writeFileSync(statePath(), JSON.stringify(publishState, null, 2));
-}
-
-// Recursively list .md files without reading them; skips vault-internal dirs
-function walkVault(dir) {
-    const out = [];
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        if (e.name.startsWith('.') || e.name === 'node_modules') continue;
-        const p = path.join(dir, e.name);
-        if (e.isDirectory()) out.push(...walkVault(p));
-        else if (e.isFile() && e.name.endsWith('.md')) out.push(p);
-    }
-    return out;
 }
 
 async function listExistingObjects() {
@@ -155,18 +145,6 @@ async function main() {
 }
 
 let uploadFailures = [];
-
-// matter.stringify(string, ...) re-parses the string, so a body that itself starts with
-// a bad '---' block throws. Pass an object to skip the parse.
-function stringifyNote(content, data) {
-    return matter.stringify({ content }, data);
-}
-
-// True if the leading '---' front matter block contains a top-level publish: key
-function hasPublishKey(text) {
-    const block = text.match(/^﻿?---\r?\n([\s\S]*?)\r?\n---/);
-    return block !== null && /^publish:/m.test(block[1]);
-}
 
 async function mainFileLoop(objectMap, candidates, cached) {
     const results = { uploaded: 0, skipped: 0, failed: 0, invalid: 0 };
