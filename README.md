@@ -1,6 +1,33 @@
 # Obsidian Utilities
 Collection of utilities to turn Obsidian into a lightweight publishing platform.
 
+## Requirements
+- **Node.js ≥ 24.22.1** (hard requirement, enforced via `engines` in `package.json` and `.nvmrc`). The 2026-10-21 Node.js security releases fixed CVE-2026-111497 (brotli decoder out-of-bounds write, high) among others; older versions are not supported.
+- Install dependencies with `npm install`.
+
+## Architecture
+Entry scripts live in the repo root and keep their CLI contracts (they are called from Obsidian Shell Commands with the repository as the working directory):
+- `prettyPdf.js [config] [file] [--save-html|--html]` — Markdown → styled PDF via puppeteer
+- `prettyMsWord.js [config] [file]` — Markdown → DOCX via html-to-docx
+- `publishToConfluence.js [config] [file]` — Markdown → Confluence page (create or update)
+- `publishToGCS.js [--dry-run] [--refresh]` — publish tagged notes to a GCS bucket (plus optional git mirror)
+
+Shared logic lives in `lib/`:
+- `lib/config.js` — dotenv loading, argv parsing, `configs/*.json` loading, path derivation
+- `lib/vault.js` — `findFileByName()` (async recursive search), `walkVault()` (sync `.md` listing)
+- `lib/frontmatter.js` — gray-matter stringify/parse wrappers, `hasPublishKey()`
+- `lib/open.js` — fire-and-forget app opener (detached spawn)
+- `lib/markdownToHTML.js` — the Markdown → HTML pipeline (marked, jimp, sass)
+- `lib/cssMappings.js` — frontmatter css-key → CSS rule mappings
+
+## Smoke harness (regression tests)
+The `smoke/` directory holds a self-contained fixture vault plus golden outputs captured from a known-good run. Nothing in it touches your real vault, GCS, Confluence, or installed apps (external services are stubbed locally).
+
+- `npm run baseline` — re-captures the golden outputs into `smoke/golden/` (run deliberately, after reviewing an intended output change).
+- `npm run verify` — re-runs the pipelines and diffs against the goldens; exits non-zero on drift.
+
+The Confluence path additionally has a stub-server proof: `node smoke/verify-confluence.mjs` asserts the request shape (auth, params, page-create body with the golden HTML and image transforms) against a local stub — no live Confluence writes.
+
 ## S3 Pretty Print
 Converty your Obisidian Markdown files to PDF with highly customizable templates, with support for local image embedding, custom styling using SASS, and automatic header and footer generation.
 
@@ -117,8 +144,8 @@ Both formats produce the same result. The nested format is cleaner when you have
 
 ### How It Works Technically
 - **Markdown Parsing**: Uses gray-matter to parse front matter and marked for Markdown to HTML conversion.
-- **Local Image Handling**: Replaces Obsidian-style image links with base64 encoded images using regular expressions and fs-extra for file operations.
-- **SASS/CSS Rendering**: Compiles SASS to CSS using node-sass.
+- **Local Image Handling**: Replaces Obsidian-style image links with base64 encoded images using regular expressions and core `node:fs` for file operations.
+- **SASS/CSS Rendering**: Compiles SASS to CSS using `sass` (Dart Sass).
 - **HTML and PDF Generation**: Assembles HTML with custom styling and uses puppeteer for generating the PDF file.
 - **Dynamic Header/Footer**: Uses string replacement to insert dynamic content into headers and footers.
 
