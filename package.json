@@ -1,4 +1,10 @@
 {
+  "name": "obsidian-utilities",
+  "version": "1.0.0",
+  "scripts": {
+    "baseline": "node smoke/baseline.mjs",
+    "verify": "node smoke/verify.mjs"
+  },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",
     "axios": "^1.9.0",
