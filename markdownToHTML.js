@@ -1,4 +1,4 @@
-const fs = require('fs-extra');
+const fs = require('fs');
 const Jimp = require('jimp');
 const path = require('path');
 const { marked } = require('marked');
@@ -19,7 +19,7 @@ const renderers = {
 
 async function convertMarkdownToHTML(markdownFilePath, config) {
     // Read Markdown file
-    let fileContent = await fs.readFile(markdownFilePath, 'utf8');
+    let fileContent = await fs.promises.readFile(markdownFilePath, 'utf8');
     let { data: frontMatter, content: markdown } = matter(fileContent);
 
     // Process images
@@ -57,16 +57,16 @@ async function convertMarkdownToHTML(markdownFilePath, config) {
     }
 
     // Combine HTML with the stylesheet and templates
-    let fullHtml = await fs.readFile(config.bodyPath, 'utf8');
+    let fullHtml = await fs.promises.readFile(config.bodyPath, 'utf8');
     fullHtml = fullHtml.replaceAll('{css}', css).replaceAll('{html}', html);
 
     // Remove script tags and their contents
     fullHtml = fullHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
 
     // Get header/footer
-    let headerContent = await fs.readFile(config.headerPath, 'utf8');
+    let headerContent = await fs.promises.readFile(config.headerPath, 'utf8');
     headerContent = headerContent.replaceAll('{title}', docTitle);
-    let footerContent = await fs.readFile(config.footerPath, "utf8");
+    let footerContent = await fs.promises.readFile(config.footerPath, "utf8");
     footerContent = footerContent.replaceAll('{year}', (new Date()).getFullYear());
 
     return {

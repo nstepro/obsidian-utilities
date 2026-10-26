@@ -1,11 +1,9 @@
-let extend = require('util')._extend;
 let fs = require('fs');
 let path = require('path');
+const crypto = require('node:crypto');
 const { glob } = require("glob");
 const dotenv = require('dotenv');
 let matter = require('gray-matter');
-let short = require('short-uuid');
-const moment = require('moment');
 
 // Get env variables
 dotenv.config();
@@ -207,7 +205,10 @@ async function mainFileLoop(objectMap, candidates, cached) {
         if (m.matter.data.publish) {
 
             // Get create/modify dates (published notes only)
-            const createdDate = moment(fs.statSync(file).birthtime).format('MMM D, YYYY h:mm A');
+            const createdDate = fs.statSync(file).birthtime.toLocaleString('en-US', {
+                year: 'numeric', month: 'short', day: 'numeric',
+                hour: 'numeric', minute: '2-digit', hour12: true
+            }).replace(/(\d{4}),/, '$1');
             if (m.matter.data.created === undefined || m.matter.data.created === null) {
                 m.matter.data.created = createdDate;
                 fs.writeFileSync(file, stringifyNote(m.matter.content, m.matter.data));
@@ -215,8 +216,8 @@ async function mainFileLoop(objectMap, candidates, cached) {
 
             // If GUID doesn't already exist
             if (m.matter.data.guid === undefined) {
-                // Add new GUID tag
-                m.matter.data = extend(m.matter.data, { guid: short().new().substring(0, 8) });
+                // Add new GUID tag (8 chars, same shape short-uuid produced)
+                m.matter.data = { ...m.matter.data, guid: crypto.randomUUID().replaceAll('-', '').substring(0, 8) };
                 gitSettings.updateFile = true;
             }
 
@@ -227,7 +228,7 @@ async function mainFileLoop(objectMap, candidates, cached) {
 
                 // If GitURL doesn't exist (or is misaligned) - add it
                 if (gitSettings.gitPublish && gitSettings.gitFileURL !== m.matter.data.gitURL) {
-                    m.matter.data = extend(m.matter.data, { gitURL: gitSettings.gitFileURL });
+                    m.matter.data = { ...m.matter.data, gitURL: gitSettings.gitFileURL };
                     gitSettings.updateFile = true;
                 }
 

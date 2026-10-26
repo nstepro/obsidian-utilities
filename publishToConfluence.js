@@ -1,4 +1,3 @@
-const axios = require('axios');
 const fs = require('fs');
 const dotenv = require('dotenv');
 const path = require('path');
@@ -80,12 +79,15 @@ async function createConfluencePage(title, content) {
 
     try {
         console.log(url);
-        const response = await axios.post(url, data, { headers: headers });
-        return response.data;
+        const res = await fetch(url, { method: 'POST', headers: headers, body: JSON.stringify(data) });
+        if (!res.ok) {
+            throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, body: await res.text() });
+        }
+        return await res.json();
     } catch (error) {
-        if (error.response) {
-            console.error('Error creating Confluence page:', error.response.data);
-            console.error('Status code:', error.response.status);
+        if (error.status !== undefined) {
+            console.error('Error creating Confluence page:', error.body);
+            console.error('Status code:', error.status);
         } else {
             console.error('Error:', error.message);
         }
@@ -102,17 +104,18 @@ async function findConfluencePage(title) {
     };
     
     try {
-        const response = await axios.get(url, {
-            headers,
-            params: {
-                spaceKey,
-                parentId,
-                title: title,
-                expand: 'version'
-            }
+        const params = new URLSearchParams({
+            spaceKey,
+            parentId,
+            title: title,
+            expand: 'version'
         });
-        
-        const results = response.data.results;
+        const res = await fetch(`${url}?${params}`, { headers });
+        if (!res.ok) {
+            throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, body: await res.text() });
+        }
+        const data = await res.json();
+        const results = data.results;
         return results.length > 0 ? results[0] : null;
     } catch (error) {
         console.error('Error finding page:', error.message);
@@ -144,12 +147,15 @@ async function updateConfluencePage(pageId, title, content, version) {
     };
 
     try {
-        const response = await axios.put(url, data, { headers });
-        return response.data;
+        const res = await fetch(url, { method: 'PUT', headers: headers, body: JSON.stringify(data) });
+        if (!res.ok) {
+            throw Object.assign(new Error(`HTTP ${res.status}`), { status: res.status, body: await res.text() });
+        }
+        return await res.json();
     } catch (error) {
-        if (error.response) {
-            console.error('Error updating Confluence page:', error.response.data);
-            console.error('Status code:', error.response.status);
+        if (error.status !== undefined) {
+            console.error('Error updating Confluence page:', error.body);
+            console.error('Status code:', error.status);
         } else {
             console.error('Error:', error.message);
         }

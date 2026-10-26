@@ -1,5 +1,5 @@
 const { exec } = require('child_process');
-const fs = require('fs-extra');
+const fs = require('fs');
 const path = require('path');
 const puppeteer = require('puppeteer');
 const { convertMarkdownToHTML } = require('./markdownToHTML');
@@ -65,7 +65,7 @@ async function convertToPDF(markdownFilePath) {
         // Save HTML if requested
         if (saveHtml) {
             const htmlOutFile = path.join(outputPath, `${title}.html`);
-            await fs.writeFile(htmlOutFile, html, 'utf8');
+            await fs.promises.writeFile(htmlOutFile, html, 'utf8');
             console.log(`HTML successfully saved at ${htmlOutFile}`);
         }
 
@@ -94,7 +94,7 @@ function openPdf(filePath) {
 async function findFileByName(directory, fileName) {
     let files;
     try {
-        files = await fs.readdir(directory, { withFileTypes: true });
+        files = await fs.promises.readdir(directory, { withFileTypes: true });
     } catch (err) {
         throw err;
     }

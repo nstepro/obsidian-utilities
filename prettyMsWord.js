@@ -1,5 +1,5 @@
 const { exec } = require('child_process');
-const fs = require('fs-extra');
+const fs = require('fs');
 const path = require('path');
 const HTMLtoDOCX = require('html-to-docx');
 const { convertMarkdownToHTML } = require('./markdownToHTML');
@@ -51,7 +51,7 @@ async function convertToWord(markdownFilePath) {
 
         // Write the Word document
         const docxOutFile = path.join(outputPath, `${title}.docx`);
-        await fs.writeFile(docxOutFile, docxBuffer);
+        await fs.promises.writeFile(docxOutFile, docxBuffer);
 
         console.log(`Word document successfully created at ${docxOutFile}`);
         openWord(docxOutFile);
@@ -80,7 +80,7 @@ function openWord(filePath) {
 async function findFileByName(directory, fileName) {
     let files;
     try {
-        files = await fs.readdir(directory, { withFileTypes: true });
+        files = await fs.promises.readdir(directory, { withFileTypes: true });
     } catch (err) {
         throw err;
     }
