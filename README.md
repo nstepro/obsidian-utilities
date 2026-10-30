@@ -28,6 +28,44 @@ The `smoke/` directory holds a self-contained fixture vault plus golden outputs 
 
 The Confluence path additionally has a stub-server proof: `node smoke/verify-confluence.mjs` asserts the request shape (auth, params, page-create body with the golden HTML and image transforms) against a local stub — no live Confluence writes.
 
+## Vault Search MCP
+Lightweight MCP server (`mcpVaultSearch.js`) providing **semantic (vector) + full-text hybrid search** over an Obsidian vault. Read-only; designed as a dependency-light replacement for obsidian-brain: zero native npm addons (no `better-sqlite3`, no `onnxruntime-node`), so Node upgrades can't break it via ABI drift.
+
+- **Storage**: built-in `node:sqlite` (WAL) with FTS5; vectors stored as L2-normalized `Float32Array` BLOBs, brute-force cosine at query time.
+- **Embeddings**: Ollama `POST /api/embed` (default model `nomic-embed-text`), batched, `truncate: true`. When Ollama is down, `hybrid`/`semantic` degrade to FTS with a `degraded` note; `fulltext` always works.
+- **Indexing**: incremental — mtime skip per file + SHA-256 per chunk, so unchanged chunks reuse stored vectors with no embed call. Deleted notes are purged; a model swap wipes vectors and re-embeds but keeps chunk text and the FTS index. No file watcher (OneDrive-hosted vault): cheap mtime re-scan at startup and on `search` when stale, plus explicit `reindex`.
+- **Ranking**: Reciprocal Rank Fusion (k = 60) over BM25 and cosine ranks, deduped per note.
+
+### Tools
+| Tool | Args | Behavior |
+|---|---|---|
+| `search` | `query`, `mode?` (`hybrid\|semantic\|fulltext`), `limit?`, `unique?` (`notes\|chunks`) | RRF-fused hits: `{path, title, score, excerpt, heading?, startLine?, endLine?, degraded?}` |
+| `reindex` | `force?` | Incremental scan now; returns `{scanned, updated, skipped, embedded, purged, totalNotes, totalChunks, totalPendingVectors}` |
+| `index_status` | — | Model, dim, chunk/vector counts, `lastIndexedAt`, staleness |
+
+### Setup
+1. Install [Ollama](https://ollama.com) and pull the model: `ollama pull nomic-embed-text`.
+2. Register in your MCP client (Claude Desktop / Claude Code `mcpServers`):
+
+```json
+{
+  "vault-search": {
+    "command": "node",
+    "args": ["C:\\Users\\NICHO\\git\\obsidian-utilities\\mcpVaultSearch.js"],
+    "env": {
+      "VAULT_PATH": "C:\\Users\\NICHO\\OneDrive\\Documents\\Test Vault",
+      "OLLAMA_MODEL": "nomic-embed-text",
+      "VSMCP_DB_PATH": "C:\\Users\\NICHO\\.vault-search\\index.db"
+    }
+  }
+}
+```
+
+Env vars: `VAULT_PATH` (required), `OLLAMA_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (default `nomic-embed-text`), `VSMCP_DB_PATH` (default `<repo>/.data/vault-search.db` — kept out of the vault so OneDrive doesn't sync a hot WAL database), `VSMCP_RESCAN_INTERVAL_MS` (default `30000`).
+
+### Verification
+`npm run verify:mcp` — end-to-end suite: boots a deterministic Ollama stub plus the real server over stdio JSON-RPC against `smoke/fixture/vault-mcp/`, and asserts tool discovery, first index, incremental touch/add/delete, hybrid ranking, degradation with the stub stopped, and model-swap re-embedding.
+
 ## S3 Pretty Print
 Converty your Obisidian Markdown files to PDF with highly customizable templates, with support for local image embedding, custom styling using SASS, and automatic header and footer generation.
 
