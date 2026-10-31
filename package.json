@@ -8,10 +8,12 @@
   },
   "scripts": {
     "baseline": "node smoke/baseline.mjs",
-    "verify": "node smoke/verify.mjs"
+    "verify": "node smoke/verify.mjs",
+    "verify:mcp": "node smoke/verify-mcp.mjs"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.4.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "commonmark": "^0.31.2",
     "dotenv": "^18.0.9",
     "glob": "^13.0.6",
@@ -20,7 +22,8 @@
     "jimp": "^1.6.1",
     "marked": "^18.1.1",
     "puppeteer": "^25.16.0",
-    "sass": "^1.106.1"
+    "sass": "^1.106.1",
+    "zod": "^4.6.7"
   },
   "overrides": {
     "html-to-docx": {
