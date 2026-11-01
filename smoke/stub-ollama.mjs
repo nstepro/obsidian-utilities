@@ -22,7 +22,8 @@ export function vectorFor(text, dim = 64) {
     return Array.from(v);
 }
 
-export async function startOllamaStub({ dim = 64 } = {}) {
+// rejectMarker: any batch containing a text with this substring gets HTTP 400 (simulates NaN/bad input).
+export async function startOllamaStub({ dim = 64, rejectMarker = null } = {}) {
     const calls = []; // { texts: string[] }
 
     const server = http.createServer((req, res) => {
@@ -34,6 +35,11 @@ export async function startOllamaStub({ dim = 64 } = {}) {
                     const json = JSON.parse(body);
                     const texts = Array.isArray(json.input) ? json.input : [String(json.input ?? '')];
                     calls.push({ texts });
+                    if (rejectMarker && texts.some((t) => t.includes(rejectMarker))) {
+                        res.writeHead(400, { 'Content-Type': 'application/json' });
+                        res.end(JSON.stringify({ error: 'json: unsupported value: NaN' }));
+                        return;
+                    }
                     const embeddings = texts.map((t) => vectorFor(t, dim));
                     res.writeHead(200, { 'Content-Type': 'application/json' });
                     res.end(JSON.stringify({ model: json.model, embeddings }));

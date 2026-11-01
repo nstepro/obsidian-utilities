@@ -232,6 +232,45 @@ console.log('scenario 3: model swap wipes vectors, keeps chunks');
     fs.rmSync(dbDir, { recursive: true, force: true });
 }
 
+// ---------------------------------------------------------------- scenario 4
+console.log('scenario 4: a rejected chunk (HTTP 400) is isolated, not fatal');
+{
+    const MARKER = 'POISONCHUNKXYZ';
+    const vaultDir = fs.mkdtempSync(path.join(os.tmpdir(), 'vsmcp-vault-s4-'));
+    fs.cpSync(fixtureVault, vaultDir, { recursive: true });
+    fs.writeFileSync(path.join(vaultDir, 'Bad.md'), `# Bad\n\nThis chunk is rejected by the backend ${MARKER}.\n`);
+    const stub = await startOllamaStub({ rejectMarker: MARKER });
+    const dbDir = tmpDb('s4');
+    const env = {
+        VAULT_PATH: vaultDir,
+        OLLAMA_URL: `http://127.0.0.1:${stub.port}`,
+        OLLAMA_MODEL: 'stub-embed',
+        VSMCP_DB_PATH: path.join(dbDir, 'index.db'),
+    };
+    const server = startServer(env);
+    const stats = await call(server, 'reindex', {});
+    // (the startup scan may already have done the work, so assert on outcome, not this run's counters)
+    check('bad chunk does not abort the run', stats.totalNotes === 9 && stats.totalChunks > 1, JSON.stringify(stats));
+    check('every other chunk got a vector', stats.totalPendingVectors === 0, `pending=${stats.totalPendingVectors}`);
+
+    const status = await call(server, 'index_status', {});
+    check('status reports 1 failed vector', status.failedVectors === 1 && status.pendingVectors === 0, JSON.stringify(status));
+
+    const fts = await call(server, 'search', { query: MARKER, mode: 'fulltext' });
+    check('rejected chunk still findable by full text', fts.some((h) => h.path === 'Bad.md'), JSON.stringify(fts.map((h) => h.path)));
+
+    const markerCalls = stub.calls.filter((c) => c.texts.some((t) => t.includes(MARKER))).length;
+    fs.appendFileSync(path.join(vaultDir, 'Bad.md'), '\n'); // bump mtime without changing chunk text
+    await call(server, 'reindex', { force: true });
+    const markerCallsAfter = stub.calls.filter((c) => c.texts.some((t) => t.includes(MARKER))).length;
+    check('rejected chunk is not resent on later scans', markerCallsAfter === markerCalls, `${markerCalls} → ${markerCallsAfter}`);
+
+    await server.stop();
+    await stub.close();
+    fs.rmSync(vaultDir, { recursive: true, force: true });
+    fs.rmSync(dbDir, { recursive: true, force: true });
+}
+
 console.log(`\n${passed} passed, ${failures.length} failed`);
 if (failures.length) {
     for (const f of failures) console.error(`FAIL ${f.name}: ${f.detail}`);
