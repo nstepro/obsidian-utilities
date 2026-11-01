@@ -2,7 +2,7 @@
 
 Lightweight replacement for the [obsidian-brain](https://github.com/sweir1/obsidian-brain) MCP: **semantic (vector) search over an Obsidian vault + incremental index updates**, nothing else. Read-only over the vault; no note editing, no knowledge-graph analytics, no companion plugin.
 
-Status: **draft for review** — no code written yet.
+Status: **implemented** (see README "Vault Search MCP"). Decisions made during implementation: the startup scan runs after `server.connect` and yields to the event loop (30s client connect timeout); SQLite writes are batched per note / embed batch in one transaction with `synchronous = NORMAL`; embedding is resilient (HTTP 400 bisects the batch, a still-rejected chunk is recorded in `embed_failures` and stays full-text searchable; network/5xx errors abort the run); vectors are cached in memory for semantic search; Granola transcripts stay indexed and are filtered at query time (`exclude_transcripts`, `path_prefix`).
 
 ---
 
