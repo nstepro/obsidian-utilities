@@ -45,23 +45,35 @@ Lightweight MCP server (`mcpVaultSearch.js`) providing **semantic (vector) + ful
 
 ### Setup
 1. Install [Ollama](https://ollama.com) and pull the model: `ollama pull nomic-embed-text`.
-2. Register in your MCP client (Claude Desktop / Claude Code `mcpServers`):
+2. Register in your MCP client. For Claude Code, one line (use forward slashes; the `-e` form breaks in bash because `-e` is variadic and unquoted backslashes get stripped):
+
+```sh
+claude mcp add-json vault-search -s user '{"type":"stdio","command":"node","args":["<repo>/mcpVaultSearch.js"],"env":{"VAULT_PATH":"<vault>","VSMCP_DB_PATH":"<home>/.vault-search/index.db"}}'
+```
+
+Or in a client's `mcpServers` JSON:
 
 ```json
 {
   "vault-search": {
     "command": "node",
-    "args": ["C:\\Users\\NICHO\\git\\obsidian-utilities\\mcpVaultSearch.js"],
+    "args": ["<repo>/mcpVaultSearch.js"],
     "env": {
-      "VAULT_PATH": "C:\\Users\\NICHO\\OneDrive\\Documents\\Test Vault",
+      "VAULT_PATH": "<path to your vault>",
       "OLLAMA_MODEL": "nomic-embed-text",
-      "VSMCP_DB_PATH": "C:\\Users\\NICHO\\.vault-search\\index.db"
+      "VSMCP_DB_PATH": "<home>/.vault-search/index.db"
     }
   }
 }
 ```
 
 Env vars: `VAULT_PATH` (required), `OLLAMA_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (default `nomic-embed-text`), `VSMCP_DB_PATH` (default `<repo>/.data/vault-search.db` — kept out of the vault so OneDrive doesn't sync a hot WAL database), `VSMCP_RESCAN_INTERVAL_MS` (default `30000`).
+
+**Search arguments.** `query`, `mode` (`hybrid` | `semantic` | `fulltext`), `limit`, `unique`, plus two optional filters applied inside the query (so a small `limit` is never starved): `path_prefix` (vault-relative folder prefix) and `exclude_transcripts` (skip `*-transcript.md`; they stay indexed). Results are `path, title, score, excerpt, heading?, startLine?, endLine?, degraded?`.
+
+**Scores are not comparable across modes.** `fulltext` scores are BM25 normalised to the best hit in that result set (top = 1.0). `hybrid`/`semantic` scores are Reciprocal Rank Fusion values (about 0.016-0.033). Use them only to order results within one response.
+
+**Performance.** Semantic search brute-forces cosine similarity over an in-memory cache of all vectors (about chunks x dim x 4 bytes; ~340 MB for 110k x 768). The cache builds on the first semantic query after startup or any index write, then queries take well under 100 ms.
 
 ### Verification
 `npm run verify:mcp` — end-to-end suite: boots a deterministic Ollama stub plus the real server over stdio JSON-RPC against `smoke/fixture/vault-mcp/`, and asserts tool discovery, first index, incremental touch/add/delete, hybrid ranking, degradation with the stub stopped, and model-swap re-embedding.
